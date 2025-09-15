@@ -1,0 +1,4 @@
+CREATE TABLE todos (
+    id INTEGER PRIMARY KEY,
+    item TEXT NOT NULL
+);

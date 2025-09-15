@@ -1,0 +1,12 @@
+[package]
+name = "rust_todo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version="4.5.47", features = ["derive"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite_migration = { version = "1.1.0", features = ["from-directory"] }
+include_dir = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+
