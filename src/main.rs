@@ -61,6 +61,7 @@ struct Args {
     title: Option<String>,
 }
 
+
 #[allow(dead_code)]
 fn main() -> Result<()> {
     println!("Starting up Rust todo CLI");
@@ -90,7 +91,17 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Actions::Update=> println!("Updating a todo"),
+        Actions::Update=> {
+            println!("Updating a todo");
+            if let Some(title) = args.title {
+                // todo: fix
+                let todo = models::Todo {id = args.id, item= args.title, description = args.description};
+                match db::update_todo(&conn, &todo) {
+                    Ok(_) => println!("Updated todo: {}", title),
+                    Err(e) => println!("Error updating todo: {}", e),
+                }
+            }
+        },
         Actions::Get => println!("Listing all todos"),
     }
 
