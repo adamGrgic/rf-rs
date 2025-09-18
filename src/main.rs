@@ -1,108 +1,113 @@
-use clap::{Parser};
+use clap::Parser;
 use rusqlite::Result;
 
-pub mod db;
-pub mod models;
-// show help options when base executable is called (no flags)
-//
-// Checklist / roadmap
-// [] (pre) briefly review rust book and relevant guides
-//      - devtooling
-//      - testing
-//      - documents
-// [] access sqlite database via rust runtime
-// let conn = Connection::open("my_database.sqlite3");
-// use `Connection::open_in_memory()` if you prefer an in-memory DB
-// Ok(())
-//
-// [] create data model for todo items
-// [] create a function for adding a todo to the database
-// [] create a function for removing a todo from the database
-// [] create a function for updating a todo from the database
-// [] create a function for getting the todos from the database
-// [] ensure the above functions are executable via commandline
-//    ex: ./todo-rs get --id
-//    ex: ./todo-rs list
-//    ex: ./todo-rs update --id 1 --title foo --description bar
-//    ex: ./todo-rs add --title foo --description bar (have some default values)
-//    ex: ./todo-rs delete --id 1
-//
+mod db;
+mod models;
 
-
-/* #[derive(Clone, ValueEnum)]
-enum Actions {
-    Add,
-    Update,
-    Remove,
-    Get,
-} */
-
-#[derive(Clone, Debug,clap::ValueEnum)]
-enum Actions { Add, Update, Remove, Get }
+// Note: For the `Get` command to work, the `Todo` struct in `models.rs` will need to derive `Debug`.
+// e.g., `#[derive(Debug)] pub struct Todo { ... }`
+use crate::models::{AddTodo, RemoveTodo, UpdateTodo};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-struct Args {
-    /// The name of the person to greet
-    #[arg(short, long)]
-    name: String,
-
-    /// Number of times to greet
-    #[arg(short, long, default_value_t = 1)]
-    times: u8,
-
-    #[arg(short, long,value_enum)]
-    action: Actions,
-
-    #[arg(short, long)]
-    description: Option<String>,
-
-    #[arg(long)]
-    title: Option<String>,
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
 
+#[derive(clap::Subcommand, Debug)]
+enum Commands {
+    /// Add a new todo item
+    Add {
+        #[arg(long)]
+        title: String,
+        #[arg(long)]
+        description: String,
+    },
+    /// Remove a todo item by its ID
+    Remove {
+        #[arg(long)]
+        id: i32,
+    },
+    /// Update a todo item. NOTE: This requires all fields currently.
+    Update {
+        #[arg(long)]
+        id: i32,
+        #[arg(long)]
+        title: String,
+        #[arg(long)]
+        description: String,
+    },
+    /// List all todo items
+    Get,
+}
 
-#[allow(dead_code)]
 fn main() -> Result<()> {
     println!("Starting up Rust todo CLI");
 
-    let args = Args::parse();
+    let cli = Cli::parse();
 
+    // Per your request, leaving the connection logic to panic on failure.
     let conn = db::initialize_database().expect("failed to initialize database");
 
-    match args.action {
-        Actions::Add => {
+    match cli.command {
+        Commands::Add { title, description } => {
             println!("Adding a todo!");
-            if let Some(title) = args.title {
-                match db::add_todo(&conn, &title) {
-                    Ok(_) => println!("Added todo: {}", title),
-                    Err(e) => println!("Error adding todo: {}", e),
-                }
-            } else {
-                println!("The --title argument is required for the 'add' action");
+            let add_todo = AddTodo {
+                title,
+                description,
+            };
+
+            match db::add_todo(&conn, &add_todo) {
+                Ok(_) => println!("Added todo: {}", add_todo.title),
+                Err(e) => eprintln!("Error adding todo: {}", e),
             }
         }
-        Actions::Remove => {
+        Commands::Remove { id } => {
             println!("Removing a todo");
-            if let Some(title) = args.title {
-                match db::remove_todo(&conn, &title) {
-                    Ok(_) => println!("Removed todo: {}", title),
-                    Err(e) => println!("Error removing todo: {}", e),
-                }
+            // As suggested, this could be simplified further by changing `db::remove_todo`
+            // to accept an `id: i32` directly, removing the need for the `RemoveTodo` struct.
+            let remove_todo = RemoveTodo { id };
+            match db::remove_todo(&conn, &remove_todo) {
+                Ok(_) => println!("Removed todo id: {}", id),
+                Err(e) => eprintln!("Error removing todo: {}", e),
             }
         }
-        Actions::Update=> {
+        Commands::Update {
+            id,
+            title,
+            description,
+        } => {
             println!("Updating a todo");
-            if let Some(title) = args.title {
-                // todo: fix
-                let todo = models::Todo {id = args.id, item= args.title, description = args.description};
-                match db::update_todo(&conn, &todo) {
-                    Ok(_) => println!("Updated todo: {}", title),
-                    Err(e) => println!("Error updating todo: {}", e),
-                }
+            let update_todo = UpdateTodo {
+                id,
+                title,
+                description,
+            };
+            match db::update_todo(&conn, &update_todo) {
+                Ok(_) => println!("Updated todo: {}", update_todo.title),
+                Err(e) => eprintln!("Error updating todo: {}", e),
             }
-        },
-        Actions::Get => println!("Listing all todos"),
+        }
+        Commands::Get => {
+            println!("Fetching all todos...");
+            // This assumes a `get_all_todos` function exists in `db.rs`
+            // and that the main `Todo` struct derives `Debug`.
+            match db::get_all_todos(&conn) {
+                Ok(todos) => {
+                    if todos.is_empty() {
+                        println!("No todos found.");
+                    } else {
+                        println!("--- Todos ---");
+                        for todo in todos {
+                            println!("{:?}", todo); // Requires `#[derive(Debug)]` on the Todo struct
+                        }
+                        println!("-------------");
+                    }
+                }
+                Err(e) => eprintln!("Error fetching todos: {}", e),
+            }
+        }
     }
 
     Ok(())
