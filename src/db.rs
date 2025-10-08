@@ -6,13 +6,20 @@ use rusqlite_migration::MigrationsBuilder;
 static MIGRATION_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/migrations");
 
 pub fn initialize_database() -> Result<Connection> {
+    println!("Initializing database...");
     let mut conn = Connection::open("my_database.sqlite3")?;
 
+    println!("Loading migrations");
     let migrations: rusqlite_migration::Migrations =
         MigrationsBuilder::from_directory(&MIGRATION_DIR)
             .unwrap()
             .finalize();
+    println!("Found migrations: {:?}", migrations);
+
+
+    println!("Applying migrations...");
     migrations.to_latest(&mut conn).unwrap();
+    println!("Migrations applied successfully.");
 
     Ok(conn)
 }
@@ -40,7 +47,7 @@ pub fn update_todo(conn: &Connection, todo: &UpdateTodo) -> Result<usize> {
 }
 
 pub fn get_all_todos(conn: &Connection) -> Result<Vec<Todo>> {
-    let mut stmt = conn.prepare("SELECT id, item, description FROM todos")?;
+    let mut stmt = conn.prepare("SELECT id, title, description FROM todos")?;
     let todo_iter = stmt.query_map([], |row| {
         Ok(Todo {
             id: row.get(0)?,
